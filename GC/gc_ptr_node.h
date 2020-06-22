@@ -2,6 +2,7 @@
 #include <memory>
 #include <vector>
 #include <mutex>
+#include <functional>
 
 class gc_ptr_node;
 typedef volatile gc_ptr_node v_gc_ptr_node;
@@ -46,6 +47,10 @@ public:
 	gc_ptr_node* get_child_node(uint32_t index);
 	bool remove_child(gc_ptr_base* ptr);
 	gc_ptr_base* remove_child(uint32_t index);
+
+	virtual void clear_up_gc_ptr();
+
+
 };
 
 template <typename T>
@@ -63,5 +68,12 @@ public:
 		delete data;
 	}
 
+	void clear_up_gc_ptr() 
+	{
+		clear_up_gc_ptr_func();
+	}
+
 	T* data;
+	
+	std::function<void(void)> clear_up_gc_ptr_func;
 };

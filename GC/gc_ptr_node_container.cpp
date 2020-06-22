@@ -142,6 +142,11 @@ void lock_free_node_buffer::shrink(gc_ptr_node* empty_elem)
 			if (null_pos != data_pos)
 			{
 				::memmove(&m_node_buffer[null_pos], &m_node_buffer[data_pos], data_len * sizeof(gc_ptr_node*));
+				for (uint32_t i = 0; i < data_len; i++)
+				{
+					m_node_buffer[i + null_pos]->gc_pos = i + null_pos;
+				}
+
 			}
 			null_pos = null_pos + data_len;
 			find_data = false;
@@ -152,10 +157,16 @@ void lock_free_node_buffer::shrink(gc_ptr_node* empty_elem)
 	{
 		uint32_t data_len = m_cur_pos - data_pos;
 		::memmove(&m_node_buffer[null_pos], &m_node_buffer[data_pos], data_len * sizeof(gc_ptr_node*));
+		for (uint32_t i = 0; i < data_len; i++)
+		{
+			m_node_buffer[i + null_pos]->gc_pos = i + null_pos;
+		}
 		null_pos = null_pos + data_len;
 	}
 
 	m_cur_pos = null_pos;
+
+	::memset(&m_node_buffer[null_pos], 0, (m_node_buffer_size - m_cur_pos) * sizeof(gc_ptr_node*));
 
 	InterlockedExchange64(&m_shrinking, 0);
 }
@@ -277,8 +288,7 @@ lock_free_deleted_stack::lock_free_deleted_stack(uint64_t initial_capacity) :
 	m_cur_pos(0),
 	m_pushing(0),
 	m_poping(0),
-	m_resizing(0),
-	m_clearing(0)
+	m_resizing(0)
 {
 	m_buffer = new int64_t[initial_capacity]();
 	assert(m_buffer);
@@ -295,7 +305,7 @@ void lock_free_deleted_stack::push(int64_t elem)
 	while (true)
 	{
 		InterlockedIncrement64(&m_pushing);
-		if (m_resizing | m_poping | m_clearing)
+		if (m_resizing | m_poping)
 		{
 			InterlockedDecrement64(&m_pushing);
 			std::this_thread::yield();
@@ -329,7 +339,7 @@ bool lock_free_deleted_stack::pop(int64_t& elem)
 	while (true)
 	{
 		InterlockedIncrement64(&m_poping);
-		if (m_resizing | m_pushing | m_clearing)
+		if (m_resizing | m_pushing)
 		{
 			InterlockedDecrement64(&m_poping);
 			std::this_thread::yield();
@@ -365,23 +375,7 @@ size_t lock_free_deleted_stack::size()
 
 void lock_free_deleted_stack::clear()
 {
-	while (true)
-	{
-		InterlockedIncrement64(&m_clearing);
-		if (m_pushing | m_poping | m_resizing)
-		{
-			InterlockedDecrement64(&m_clearing);
-			std::this_thread::yield();
-		}
-		else
-		{
-			break;
-		}
-	}
-
 	InterlockedExchange64(&m_cur_pos, 0);
-
-	InterlockedDecrement64(&m_clearing);
 }
 
 void lock_free_deleted_stack::resize(uint64_t length)
@@ -395,7 +389,7 @@ void lock_free_deleted_stack::resize(uint64_t length)
 			continue;
 		}
 
-		if (m_pushing | m_poping | m_clearing)
+		if (m_pushing | m_poping)
 		{
 			InterlockedExchange64(&m_resizing, 0);
 			std::this_thread::yield();

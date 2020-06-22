@@ -15,19 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="GC.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="garbage_collection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="gc_ptr_node.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="demo.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="thread_test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="gc_ptr_node_container.cpp">
@@ -37,6 +28,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="gc_scan_thread.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

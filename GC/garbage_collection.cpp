@@ -13,10 +13,16 @@ garbage_collection::garbage_collection()
 
 garbage_collection::~garbage_collection()
 {
+	if (m_gc.m_running) 
+	{
+		shut_down();
+	}
 }
 
 void garbage_collection::start_up(uint32_t scan_thread_count)
 {
+	assert(!m_gc.m_running);
+
 	m_gc.m_wait_thread_count = m_gc.m_thread_count = scan_thread_count;
 
 	for (uint32_t i = 0; i < scan_thread_count; i++)
@@ -25,12 +31,14 @@ void garbage_collection::start_up(uint32_t scan_thread_count)
 		m_gc.m_threads.emplace_back(th);
 	}
 
+	m_gc.m_running = true;
 	m_gc.m_manager_thread = std::thread(&garbage_collection::gc_manager_func, &m_gc);
 }
 
 void garbage_collection::shut_down()
 {
-	m_gc.m_quit = true;
+	m_gc.m_threads.clear();
+	m_gc.m_running = false;
 	m_gc.m_manager_thread.join();
 }
 
@@ -50,12 +58,17 @@ bool garbage_collection::add_ptr_node(gc_ptr_node* node)
 				return true;
 			}
 		}
+
+		std::this_thread::yield();
 	}
 }
 
 void garbage_collection::notify_ptr_changed(gc_ptr_node* node)
 {
-
+	for (auto &th : m_gc.m_threads) 
+	{
+		th->notify_ptr_change(node);
+	}
 }
 
 void garbage_collection::post_garbage_node(v_gc_ptr_node* node)
@@ -78,15 +91,22 @@ void garbage_collection::gc_manager_func()
 {
 	uint32_t shrink_thread_num(0);
 
-	while (!m_quit) 
+	while (m_running)
 	{
 		if (!m_wait_thread_count) 
 		{ 
 			for (auto &node : m_garbage_node) 
 			{
 				assert(m_threads[node->gc_num]->remove_node(node->gc_pos));
+				node->clear_up_gc_ptr();
+			}
+
+			for (auto &node : m_garbage_node) 
+			{
 				delete node;
 			}
+
+			m_garbage_node.clear();
 
 			uint32_t shrink_thread_count(0);
 			for (uint32_t i = 0; i < m_thread_count; i++)
@@ -103,11 +123,16 @@ void garbage_collection::gc_manager_func()
 				{
 					shrink_thread_num++;
 				}
-				else if(th->empty_ratio() > 0.5)
+				else if(th->used_ratio() > 0.8)
+				{
+					th->tidy();
+					shrink_thread_count++;
+				}
+				else if (th->empty_ratio() > 0.5) 
 				{
 					th->shrink();
 					shrink_thread_count++;
-				}				
+				}
 			}
 
 			InterlockedExchange64(&m_wait_thread_count, m_thread_count);

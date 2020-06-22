@@ -44,7 +44,7 @@ private:
 	volatile int64_t			m_pushing;
 	volatile int64_t			m_poping;
 	volatile int64_t			m_resizing;
-	volatile int64_t			m_clearing;
+	
 
 	void resize(uint64_t length);
 };

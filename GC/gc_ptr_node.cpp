@@ -98,3 +98,7 @@ gc_ptr_base* gc_ptr_node::remove_child(uint32_t index)
 	child_ptrs.erase(child_ptrs.begin() + index);
 	return erase_node;
 }
+
+void gc_ptr_node::clear_up_gc_ptr()
+{
+}

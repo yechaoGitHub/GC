@@ -2,6 +2,9 @@
 #include "gc_ptr.hpp"
 
 template<typename T>
+class gc_ptr;
+
+template<typename T>
 class gc_allocator
 {
     template<typename U>
@@ -56,7 +59,8 @@ public:
             for (uint32_t i = 0; i < size; i++)
             {
 #if _DEBUG
-                m_node->remove_child((gc_ptr<T>*)(&ptr[i]));
+                m_node->remove_child((gc_ptr<T>*)&ptr[i]);
+          
 #else
                 m_node->remove_child(&ptr[i]);
 #endif
@@ -106,7 +110,7 @@ private:
     std::allocator<T>	m_std_allocator;
 };
 
-class enable_ptr_form_raw
+class enable_gc_ptr_form_raw
 {
     template<typename T>
     friend class gc_ptr;
@@ -118,7 +122,7 @@ class enable_ptr_form_raw
     friend const gc_ptr<T> get_gc_ptr_from_raw(const T* raw);
 
 public:
-    enable_ptr_form_raw() :
+    enable_gc_ptr_form_raw() :
         m_base_node(nullptr)
     {
 
@@ -132,6 +136,11 @@ public:
 
 protected:
     virtual void assigned_to_gc_ptr() 
+    {
+
+    }
+
+    virtual void clear_up_gc_ptr() 
     {
 
     }

@@ -1,11 +1,12 @@
 #pragma once
 #include "gc_ptr_node.h"
+#include "gc_allocator.hpp"
 #include "garbage_collection.h"
 #include <stdint.h>
 #include <type_traits>
 #include <assert.h>
 
-class enable_ptr_form_raw;
+class enable_gc_ptr_form_raw;
 
 template<typename T>
 class gc_ptr : public gc_ptr_base
@@ -68,7 +69,6 @@ public:
         }
     }
 
-
     ~gc_ptr()
     {
         reduce_ref();
@@ -76,6 +76,9 @@ public:
         {
             m_par_node->remove_child(this);
         }
+        m_ptr_node = nullptr;
+        m_par_node = nullptr;
+        m_cast_data = nullptr;
     }
 
     gc_ptr& operator= (const gc_ptr& rhd)
@@ -219,15 +222,22 @@ public:
 
         reduce_ref();
         node->data = object;
-        if constexpr (std::is_base_of_v<enable_ptr_form_raw, T>)
+        if constexpr (std::is_base_of_v<enable_gc_ptr_form_raw, T>)
         {
             object->m_base_node = node;
+            object->assigned_to_gc_ptr();
+            node->clear_up_gc_ptr_func = std::bind(&T::clear_up_gc_ptr, object);
+        }
+        else if constexpr (T::need_clear_up_gc_ptr) 
+        {
+            node->clear_up_gc_ptr_func = std::bind(&T::clear_up_gc_ptr, object);
         }
 
         m_ptr_node = node;
         m_cast_data = object;
+
+        garbage_collection::add_ptr_node(m_ptr_node);
         m_ptr_node->add_ref();
-        //YGarbageCollector::AddNode(mPointerNode);
 
         return true;
     }
@@ -296,7 +306,7 @@ public:
         assert(!this->is_null());
         assert(ptr.is_null() && ptr.m_par_node == nullptr);
 
-        //YGarbageCollector::NotifyPointerChange(mPointerNode);
+        garbage_collection::notify_ptr_changed(m_ptr_node);
         m_ptr_node->add_child(const_cast<gc_ptr<P>*>(&ptr));
         ptr.m_par_node = m_ptr_node;
     }
@@ -307,6 +317,7 @@ public:
         assert(!this->is_null());
         assert(ptr.m_par_node == m_ptr_node);
 
+        garbage_collection::notify_ptr_changed(m_ptr_node);
         m_ptr_node->remove_child(const_cast<gc_ptr<P>*>(&ptr));
         ptr.m_par_node = nullptr;
     }
@@ -334,7 +345,7 @@ public:
     {
         if (!is_null())
         {
-            //YGarbageCollector::NotifyPointerChange(mPointerNode);
+            garbage_collection::notify_ptr_changed(m_ptr_node);
             m_ptr_node->add_ref();
         }
     }
@@ -343,7 +354,7 @@ public:
     {
         if (!is_null())
         {
-            //YGarbageCollector::NotifyPointerChange(mPointerNode);
+            garbage_collection::notify_ptr_changed(m_ptr_node);
             m_ptr_node->reduce_ref();
         }
     }
@@ -357,7 +368,7 @@ public:
 template<typename T>
 gc_ptr<T> get_gc_ptr_from_raw(T *raw)
 {
-    static_assert(std::is_base_of_v<enable_ptr_form_raw, T>, L"没有继承EnablePtrFormRaw");
+    static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"没有继承EnablePtrFormRaw");
     assert(raw->m_base_node);
 
     return gc_ptr<T>(raw->m_base_node, raw);
@@ -366,7 +377,7 @@ gc_ptr<T> get_gc_ptr_from_raw(T *raw)
 template<typename T>
 const gc_ptr<T> get_gc_ptr_from_raw(const T* raw)
 {
-    static_assert(std::is_base_of_v<enable_ptr_form_raw, T>, L"没有继承EnablePtrFormRaw");
+    static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"没有继承EnablePtrFormRaw");
     assert(raw->m_base_node);
 
     return gc_ptr<T>(raw->m_base_node, raw);

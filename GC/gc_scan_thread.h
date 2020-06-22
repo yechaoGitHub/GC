@@ -13,10 +13,11 @@ public:
 	void add_node(gc_ptr_node* node);
 	bool remove_node(int64_t index);
 	float empty_ratio();
-	uint32_t idle_count();
+	float used_ratio();
 	void shrink();
 	void tidy();
 	bool is_paused();
+	void notify_ptr_change(gc_ptr_node* ptr_node);
 
 private:
 	garbage_collection&		m_gc;
@@ -31,4 +32,5 @@ private:
 	std::thread				m_scan_thread;
 
 	void scan_func();
+	void wait_for_clear();
 };

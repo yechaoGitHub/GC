@@ -150,13 +150,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="demo.cpp" />
     <ClCompile Include="garbage_collection.cpp" />
-    <ClCompile Include="GC.cpp" />
     <ClCompile Include="gc_ptr_node.cpp" />
     <ClCompile Include="gc_ptr_node_container.cpp" />
     <ClCompile Include="gc_scan_thread.cpp" />
-    <ClCompile Include="thread_test.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="gc_tref.cpp" />
   </ItemGroup>
   <ItemGroup>
