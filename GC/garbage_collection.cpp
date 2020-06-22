@@ -65,10 +65,7 @@ bool garbage_collection::add_ptr_node(gc_ptr_node* node)
 
 void garbage_collection::notify_ptr_changed(gc_ptr_node* node)
 {
-	for (auto &th : m_gc.m_threads) 
-	{
-		th->notify_ptr_change(node);
-	}
+	m_gc.m_threads[node->gc_num]->notify_ptr_change(node);
 }
 
 void garbage_collection::post_garbage_node(v_gc_ptr_node* node)
