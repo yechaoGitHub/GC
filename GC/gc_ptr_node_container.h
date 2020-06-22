@@ -11,7 +11,11 @@ public:
 	gc_ptr_node* set_node(uint32_t index, gc_ptr_node* node);
 	v_gc_ptr_node* operator[](uint64_t index);
 	void shrink(gc_ptr_node* empty_elem);
+	void resize(uint64_t length);
+	void tidy(uint64_t length, gc_ptr_node* empty_elem);
 	size_t size();
+	size_t capacity();
+	bool is_paused();
 
 private:
 	v_gc_ptr_node**		m_node_buffer;
@@ -19,8 +23,7 @@ private:
 	volatile int64_t	m_cur_pos;
 	volatile int64_t	m_resizing;
 	volatile int64_t	m_shrinking;
-
-	void resize(uint64_t length);
+	volatile int64_t	m_getting;
 };
 
 class lock_free_deleted_stack
@@ -56,9 +59,13 @@ public:
 	bool remove_node(int64_t index);
 	v_gc_ptr_node* operator[](uint64_t index);
 	void shrink();
+	void resize(uint64_t length);
+	void tidy(uint32_t length);
 	float empty_ratio();
+	float used_ratio();
 	size_t node_count();
 	size_t size();
+	bool is_paused();
 
 private:
 	lock_free_node_buffer	m_nodes;

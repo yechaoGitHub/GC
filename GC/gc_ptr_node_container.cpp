@@ -6,8 +6,9 @@ lock_free_node_buffer::lock_free_node_buffer(uint64_t initial_capacity) :
 	m_node_buffer(nullptr),
 	m_node_buffer_size(0),
 	m_cur_pos(0),
-	m_resizing(false),
-	m_shrinking(false)
+	m_resizing(0),
+	m_shrinking(0),
+	m_getting(0)
 {
 	m_node_buffer = new v_gc_ptr_node* [initial_capacity]();
 	::memset(m_node_buffer, 0, initial_capacity * sizeof(gc_ptr_node*));
@@ -17,22 +18,37 @@ lock_free_node_buffer::lock_free_node_buffer(uint64_t initial_capacity) :
 
 lock_free_node_buffer::~lock_free_node_buffer()
 {
+	delete m_node_buffer;
 }
 
 void lock_free_node_buffer::add_node(gc_ptr_node* node)
 {
-	while (m_shrinking || m_resizing);
+	while (true)
+	{
+		InterlockedIncrement64(&m_getting);
+		if (m_resizing | m_shrinking)
+		{
+			InterlockedDecrement64(&m_getting);
+			std::this_thread::yield();
+		}
+		else
+		{
+			break;
+		}
+	}
 
 	int64_t add_pos = InterlockedIncrement64(&m_cur_pos) - 1;
 
 	while (add_pos >= m_node_buffer_size)
 	{
-		Sleep(0);
+		std::this_thread::yield();
 	}
 
 	node->gc_pos = add_pos;
 
 	InterlockedExchange64(reinterpret_cast<volatile int64_t*>(&m_node_buffer[add_pos]), reinterpret_cast<int64_t>(node));
+
+	InterlockedDecrement64(&m_getting);
 
 	if (add_pos >= m_node_buffer_size - 1)
 	{
@@ -42,17 +58,50 @@ void lock_free_node_buffer::add_node(gc_ptr_node* node)
 
 gc_ptr_node* lock_free_node_buffer::set_node(uint32_t index, gc_ptr_node* node)
 {
-	while (m_shrinking || m_resizing);
+	while (true)
+	{
+		InterlockedIncrement64(&m_getting);
+		if (m_resizing | m_shrinking)
+		{
+			InterlockedDecrement64(&m_getting);
+			std::this_thread::yield();
+		}
+		else
+		{
+			break;
+		}
+	}
+
 	assert(index < m_node_buffer_size);
 	int64_t pre_v = InterlockedExchange64(reinterpret_cast<volatile int64_t*>(&m_node_buffer[index]), reinterpret_cast<int64_t>(node));
+
+	InterlockedDecrement64(&m_getting);
+
 	return reinterpret_cast<gc_ptr_node*>(pre_v);
 }
 
-volatile gc_ptr_node* lock_free_node_buffer::operator[](uint64_t index)
+v_gc_ptr_node* lock_free_node_buffer::operator[](uint64_t index)
 {
-	while (m_shrinking || m_resizing);
+	while (true)
+	{
+		InterlockedIncrement64(&m_getting);
+		if (m_resizing | m_shrinking)
+		{
+			InterlockedDecrement64(&m_getting);
+			std::this_thread::yield();
+		}
+		else
+		{
+			break;
+		}
+	}
+
 	assert(index < m_node_buffer_size);
-	return m_node_buffer[index];
+	v_gc_ptr_node* ret = m_node_buffer[index];
+
+	InterlockedDecrement64(&m_getting);
+
+	return ret;
 }
 
 void lock_free_node_buffer::shrink(gc_ptr_node* empty_elem)
@@ -60,8 +109,25 @@ void lock_free_node_buffer::shrink(gc_ptr_node* empty_elem)
 	uint32_t null_pos(0), data_pos(0);
 	bool find_data(false);
 
-	while (InterlockedExchange64(&m_shrinking, 1));
+	while (true) 
+	{
+		if (InterlockedExchange64(&m_shrinking, 1)) 
+		{
+			continue;
+		}
 
+		if (m_resizing | m_getting) 
+		{
+			InterlockedExchange64(&m_shrinking, 0);
+		}
+		else 
+		{
+			break;
+		}
+
+		std::this_thread::yield();
+	}
+	
 	for (uint32_t i = 0; i < m_cur_pos; i++)
 	{
 		if (!find_data && m_node_buffer[i] != empty_elem)
@@ -94,21 +160,109 @@ void lock_free_node_buffer::shrink(gc_ptr_node* empty_elem)
 	InterlockedExchange64(&m_shrinking, 0);
 }
 
-size_t lock_free_node_buffer::size()
-{
-	return m_cur_pos;
-}
-
 void lock_free_node_buffer::resize(uint64_t length)
 {
 	assert(length >= m_node_buffer_size);
 
-	while (InterlockedExchange64(&m_resizing, 1));
+	while (true)
+	{
+		if (!InterlockedExchange64(&m_resizing, 1))
+		{
+			if (m_shrinking | m_getting)
+			{
+				InterlockedExchange64(&m_resizing, 0);
+			}
+			else
+			{
+				break;
+			}
+		}
+		std::this_thread::yield();
+	}
 
 	v_gc_ptr_node** new_buffer = new v_gc_ptr_node * [length];
 	assert(new_buffer);
 
 	::memcpy(new_buffer, m_node_buffer, m_cur_pos * sizeof(gc_ptr_node*));
+	::memset(&new_buffer[m_cur_pos], 0, (length - m_cur_pos) * sizeof(gc_ptr_node*));
+	delete m_node_buffer;
+	m_node_buffer = new_buffer;
+	m_node_buffer_size = length;
+
+	InterlockedExchange64(&m_resizing, 0);
+}
+
+size_t lock_free_node_buffer::size()
+{
+	return m_cur_pos;
+}
+
+size_t lock_free_node_buffer::capacity()
+{
+	return m_node_buffer_size;
+}
+
+bool lock_free_node_buffer::is_paused()
+{
+	return m_resizing | m_shrinking;
+}
+
+void lock_free_node_buffer::tidy(uint64_t length, gc_ptr_node* empty_elem)
+{
+	assert(length >= m_node_buffer_size);
+
+	while (true)
+	{
+		if (InterlockedExchange64(&m_resizing, 1))
+		{
+			continue;
+		}
+
+		if (m_shrinking | m_getting)
+		{
+			InterlockedExchange64(&m_resizing, 0);
+		}
+		else
+		{
+			break;
+		}
+
+		std::this_thread::yield();
+	}
+
+	v_gc_ptr_node** new_buffer = new v_gc_ptr_node * [length];
+	assert(new_buffer);
+	
+	uint32_t null_pos(0), data_pos(0);
+	bool find_data(false);
+	for (uint32_t i = 0; i < m_cur_pos; i++) 
+	{
+		if (!find_data && m_node_buffer[i] != empty_elem)
+		{
+			data_pos = i;
+			find_data = true;
+		}
+
+		if (find_data && m_node_buffer[i] == empty_elem)
+		{
+			uint32_t data_len = i - data_pos;
+			if (null_pos != data_pos)
+			{
+				::memmove(&new_buffer[null_pos], &m_node_buffer[data_pos], data_len * sizeof(gc_ptr_node*));
+			}
+			null_pos = null_pos + data_len;
+			find_data = false;
+		}
+	}
+
+	if (find_data)
+	{
+		uint32_t data_len = m_cur_pos - data_pos;
+		::memmove(&new_buffer[null_pos], &m_node_buffer[data_pos], data_len * sizeof(gc_ptr_node*));
+		null_pos = null_pos + data_len;
+	}
+
+	m_cur_pos = null_pos;
 	::memset(&new_buffer[m_cur_pos], 0, (length - m_cur_pos) * sizeof(gc_ptr_node*));
 	delete m_node_buffer;
 	m_node_buffer = new_buffer;
@@ -134,7 +288,6 @@ lock_free_deleted_stack::lock_free_deleted_stack(uint64_t initial_capacity) :
 lock_free_deleted_stack::~lock_free_deleted_stack()
 {
 	delete m_buffer;
-	m_buffer = nullptr;
 }
 
 void lock_free_deleted_stack::push(int64_t elem)
@@ -142,10 +295,10 @@ void lock_free_deleted_stack::push(int64_t elem)
 	while (true)
 	{
 		InterlockedIncrement64(&m_pushing);
-		if (m_resizing || m_poping || m_clearing)
+		if (m_resizing | m_poping | m_clearing)
 		{
 			InterlockedDecrement64(&m_pushing);
-			Sleep(1);
+			std::this_thread::yield();
 		}
 		else
 		{
@@ -176,10 +329,10 @@ bool lock_free_deleted_stack::pop(int64_t& elem)
 	while (true)
 	{
 		InterlockedIncrement64(&m_poping);
-		if (m_resizing || m_pushing || m_clearing)
+		if (m_resizing | m_pushing | m_clearing)
 		{
 			InterlockedDecrement64(&m_poping);
-			Sleep(2);
+			std::this_thread::yield();
 		}
 		else
 		{
@@ -215,10 +368,10 @@ void lock_free_deleted_stack::clear()
 	while (true)
 	{
 		InterlockedIncrement64(&m_clearing);
-		if (m_pushing || m_poping || m_resizing)
+		if (m_pushing | m_poping | m_resizing)
 		{
 			InterlockedDecrement64(&m_clearing);
-			Sleep(3);
+			std::this_thread::yield();
 		}
 		else
 		{
@@ -242,10 +395,10 @@ void lock_free_deleted_stack::resize(uint64_t length)
 			continue;
 		}
 
-		if (m_pushing || m_poping || m_clearing)
+		if (m_pushing | m_poping | m_clearing)
 		{
 			InterlockedExchange64(&m_resizing, 0);
-			Sleep(4);
+			std::this_thread::yield();
 		}
 		else
 		{
@@ -319,9 +472,28 @@ void ptr_node_container::shrink()
 	assert(a == b);
 }
 
+void ptr_node_container::resize(uint64_t length)
+{
+	m_nodes.resize(length);
+}
+
+void ptr_node_container::tidy(uint32_t length)
+{
+	auto a = node_count();
+	m_del_st.clear();
+	m_nodes.tidy(length, nullptr);
+	auto b = node_count();
+	assert(a == b);
+}
+
 float ptr_node_container::empty_ratio()
 {
 	return static_cast<float>(m_del_st.size()) / m_nodes.size();
+}
+
+float ptr_node_container::used_ratio()
+{
+	return static_cast<float>(m_nodes.size()) / m_nodes.capacity();
 }
 
 size_t ptr_node_container::node_count()
@@ -332,5 +504,10 @@ size_t ptr_node_container::node_count()
 size_t ptr_node_container::size()
 {
 	return m_nodes.size();
+}
+
+bool ptr_node_container::is_paused()
+{
+	return m_nodes.is_paused();
 }
 

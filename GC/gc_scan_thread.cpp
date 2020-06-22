@@ -2,6 +2,7 @@
 #include "garbage_collection.h"
 #include <assert.h>
 #include <thread> 
+#include <future>
 
 gc_scan_thread::gc_scan_thread(garbage_collection& gc, uint32_t scan_num, uint32_t scan_length, uint64_t node_buffer_size) :
 	m_gc(gc),
@@ -10,8 +11,6 @@ gc_scan_thread::gc_scan_thread(garbage_collection& gc, uint32_t scan_num, uint32
 	m_scan_index(0),
 	m_nodes(node_buffer_size),
 	m_quit(false),
-	m_shrinking(false),
-	m_scanning(false),
 	m_ptr_changed(false)
 {
 	m_scan_thread = std::thread(&gc_scan_thread::scan_func, this);
@@ -25,8 +24,6 @@ gc_scan_thread::~gc_scan_thread()
 
 void gc_scan_thread::add_node(gc_ptr_node* node)
 {
-	while (m_shrinking);
-
 	node->gc_num = m_scan_num;
 	m_nodes.add_node(node);
 }
@@ -38,14 +35,17 @@ bool gc_scan_thread::remove_node(int64_t index)
 
 void gc_scan_thread::shrink()
 {
-	m_shrinking = true;
-	m_nodes.shrink();
-	m_shrinking = false;
+	std::async(std::launch::async, &ptr_node_container::shrink, &m_nodes);
 }
 
-bool gc_scan_thread::is_shrink()
+void gc_scan_thread::tidy()
 {
-	return m_shrinking;
+	std::async(std::launch::async, &ptr_node_container::tidy, &m_nodes, m_nodes.size() * 1.5);
+}
+
+bool gc_scan_thread::is_paused()
+{
+	return m_nodes.is_paused();
 }
 
 float gc_scan_thread::empty_ratio()
@@ -62,8 +62,6 @@ void gc_scan_thread::scan_func()
 {
 	while (!m_quit)
 	{
-		
-		m_scanning = true;
 		m_mark.loop_count++;
 		size_t size = m_nodes.size();
 		for (uint32_t i = 0; i < m_scan_length; i++, 
@@ -75,7 +73,7 @@ void gc_scan_thread::scan_func()
 			if (node->ref_count == 0) 
 			{
 				//m_nodes.remove_node(i);
-				m_gc.post_eraser_node(node);
+				m_gc.post_garbage_node(node);
 			}
 
 			m_mark.step_count++;
@@ -88,11 +86,10 @@ void gc_scan_thread::scan_func()
 				//m_nodes.remove_node(i);
 				for (auto& node : m_tref.get_connected_component())
 				{
-					m_gc.post_eraser_node(node);
+					m_gc.post_garbage_node(node);
 				}
 			}
 		}
-		m_scanning = false;
 
 		garbage_collection::wait_for_garbage_collection();
 	}

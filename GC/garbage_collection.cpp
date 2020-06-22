@@ -44,7 +44,7 @@ bool garbage_collection::add_ptr_node(gc_ptr_node* node)
 		{
 			add_thread_num = (add_thread_num + 1) % m_gc.m_thread_count;
 
-			if (!m_gc.m_threads[add_thread_num]->is_shrink()) 
+			if (!m_gc.m_threads[add_thread_num]->is_paused()) 
 			{
 				m_gc.m_threads[add_thread_num]->add_node(node);
 				return true;
@@ -58,7 +58,7 @@ void garbage_collection::notify_ptr_changed(gc_ptr_node* node)
 
 }
 
-void garbage_collection::post_eraser_node(v_gc_ptr_node* node)
+void garbage_collection::post_garbage_node(v_gc_ptr_node* node)
 {
 	std::scoped_lock<std::mutex> al(m_gc.m_lock);
 	m_gc.m_garbage_node.insert(const_cast<gc_ptr_node*>(node));
@@ -99,15 +99,17 @@ void garbage_collection::gc_manager_func()
 				uint32_t th_index = shrink_thread_num % m_thread_count;
 				std::shared_ptr<gc_scan_thread> &th = m_threads[th_index];
 
-				if (th->empty_ratio() > 0.5 && 
-					!th->is_shrink())
+				if (th->is_paused()) 
+				{
+					shrink_thread_num++;
+				}
+				else if(th->empty_ratio() > 0.5)
 				{
 					th->shrink();
 					shrink_thread_count++;
-				}
-
-				shrink_thread_num++;
+				}				
 			}
+
 			InterlockedExchange64(&m_wait_thread_count, m_thread_count);
 		}
 

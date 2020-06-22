@@ -15,7 +15,8 @@ public:
 	float empty_ratio();
 	uint32_t idle_count();
 	void shrink();
-	bool is_shrink();
+	void tidy();
+	bool is_paused();
 
 private:
 	garbage_collection&		m_gc;
@@ -26,8 +27,6 @@ private:
 	gc_tref					m_tref;
 	gc_mark					m_mark;
 	bool					m_quit;
-	bool					m_shrinking;
-	bool					m_scanning;
 	bool					m_ptr_changed;
 	std::thread				m_scan_thread;
 

@@ -31,7 +31,7 @@ private:
 
 	static bool add_ptr_node(gc_ptr_node *node);
 	static void notify_ptr_changed(gc_ptr_node* node);
-	static void post_eraser_node(v_gc_ptr_node *node);
+	static void post_garbage_node(v_gc_ptr_node *node);
 	static void wait_for_garbage_collection();
 
 	void gc_manager_func();
