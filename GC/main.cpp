@@ -41,11 +41,7 @@ struct A
 
 int main() 
 {
-    
     garbage_collection::start_up(1);
-
-    gc_ptr<A> pa;
-    pa.assign(new A);
 
     gc_ptr<vertex> v1;
     gc_ptr<vertex> v2;
