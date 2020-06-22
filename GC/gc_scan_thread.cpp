@@ -77,10 +77,11 @@ void gc_scan_thread::scan_func()
 	size_t size(0);
 	while (!m_quit)
 	{
-		while (m_nodes.is_paused() || 
+		if (m_nodes.is_paused() || 
 			!(size = m_nodes.size())) 
 		{
 			std::this_thread::yield();
+			break;
 		}
 
 		m_mark.loop_count++;
