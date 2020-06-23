@@ -1,6 +1,7 @@
 #pragma once
 #include "gc_ptr_node.h"
 #include <unordered_map>
+#include <list>
 
 class bool_guard 
 {

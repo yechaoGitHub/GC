@@ -8,29 +8,37 @@
 
 class enable_gc_ptr_form_raw;
 
+template<typename T> class gc_ptr;
+
+template<typename P, typename T>
+gc_ptr<P> gc_ptr_dynamic_cast(gc_ptr<T>& origin_ptr);
+
+template<typename P, typename T>
+const gc_ptr<P> gc_ptr_dynamic_cast(const gc_ptr<T>& origin_ptr);
+
 template<typename T>
 class gc_ptr : public gc_ptr_base
 {
     template<typename P>
     friend class gc_ptr;
 
-    template<typename T>
-    friend gc_ptr<T> get_gc_ptr_from_raw(T* raw);
+    template<typename T1>
+    friend gc_ptr<T1> get_gc_ptr_from_raw(T* raw);
 
-    template<typename T>
-    friend const gc_ptr<T> get_gc_ptr_from_raw(const T* raw);
+    template<typename T1>
+    friend const gc_ptr<T1> get_gc_ptr_from_raw(const T* raw);
 
-    template<typename P, typename T>
-    friend gc_ptr<P> gc_ptr_static_cast(gc_ptr<T>& origin_ptr);
+    template<typename P, typename T1>
+    friend gc_ptr<P> gc_ptr_static_cast(gc_ptr<T1>& origin_ptr);
     
-    template<typename P, typename T>
-    friend const gc_ptr<P> gc_ptr_static_cast(const gc_ptr<T>& origin_ptr);
+    template<typename P, typename T1>
+    friend const gc_ptr<P> gc_ptr_static_cast(const gc_ptr<T1>& origin_ptr);
    
-    template<typename P, typename T>
-    friend gc_ptr<P> gc_ptr_dynamic_cast(gc_ptr<T>& origin_ptr);
+    template<typename P, typename T1>
+    friend gc_ptr<P> gc_ptr_dynamic_cast(gc_ptr<T1>& origin_ptr);
     
-    template<typename P, typename T>
-    friend const gc_ptr<P> gc_ptr_dynamic_cast(const gc_ptr<T>& origin_ptr);
+    template<typename P, typename T1>
+    friend const gc_ptr<P> gc_ptr_dynamic_cast(const gc_ptr<T1>& origin_ptr);
    
 public:
     gc_ptr() :
@@ -44,7 +52,7 @@ public:
     gc_ptr(void* null) :
         gc_ptr()
     {
-        assert(!null);
+        assert(null);
     }
 
     gc_ptr(const gc_ptr& rhd) :
@@ -195,7 +203,7 @@ public:
     template<typename P>
     operator gc_ptr<P>()
     {
-        static_assert(std::is_base_of_v<P, T>, L"²»ÄÜÖ´ÐÐÒþÊ½×ª»»");
+        static_assert(std::is_base_of_v<P, T>, L"ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½Ê½×ªï¿½ï¿½");
         P* cast_data = static_cast<P*>(m_cast_data);
         assert(m_cast_data);
         return gc_ptr<P>(m_ptr_node, cast_data);
@@ -204,7 +212,7 @@ public:
     template<typename P>
     operator const gc_ptr<P>() const
     {
-        static_assert(std::is_base_of_v<P, T>, L"²»ÄÜÖ´ÐÐÒþÊ½×ª»»");
+        static_assert(std::is_base_of_v<P, T>, L"ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ï¿½ï¿½Ê½×ªï¿½ï¿½");
         const P* cast_data = static_cast<const P*>(m_cast_data);
         assert(m_cast_data);
         return gc_ptr<P>(m_ptr_node, cast_data);
@@ -365,10 +373,38 @@ public:
     }
 };
 
+template<typename P, typename T>
+gc_ptr<P> gc_ptr_dynamic_cast(gc_ptr<T>& origin_ptr) 
+{
+    P* data = dynamic_cast<P*>(origin_ptr.get_raw_ptr());
+    if (data != nullptr)
+    {
+        return gc_ptr<P>(origin_ptr.m_ptr_node, data);
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
+template<typename P, typename T>
+const gc_ptr<P> gc_ptr_dynamic_cast(const gc_ptr<T>& origin_ptr) 
+{
+    P* data = dynamic_cast<P*>(origin_ptr.get_raw_ptr());
+    if (data != nullptr)
+    {
+        return gc_ptr<P>(origin_ptr.m_ptr_node, data);
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 template<typename T>
 gc_ptr<T> get_gc_ptr_from_raw(T *raw)
 {
-    static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"Ã»ÓÐ¼Ì³ÐEnablePtrFormRaw");
+    static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"Ã»ï¿½Ð¼Ì³ï¿½EnablePtrFormRaw");
     assert(raw->m_base_node);
 
     return gc_ptr<T>(raw->m_base_node, raw);
@@ -377,7 +413,7 @@ gc_ptr<T> get_gc_ptr_from_raw(T *raw)
 template<typename T>
 const gc_ptr<T> get_gc_ptr_from_raw(const T* raw)
 {
-    static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"Ã»ÓÐ¼Ì³ÐEnablePtrFormRaw");
+    static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"Ã»ï¿½Ð¼Ì³ï¿½EnablePtrFormRaw");
     assert(raw->m_base_node);
 
     return gc_ptr<T>(raw->m_base_node, raw);
@@ -410,33 +446,4 @@ const gc_ptr<P> gc_ptr_static_cast(const gc_ptr<T>& origin_ptr)
         return nullptr;
     }
 }
-
-template<typename P, typename T>
-gc_ptr<P> gc_ptr_dynamic_cast(gc_ptr<T>& origin_ptr) 
-{
-    P* data = dynamic_cast<P*>(origin_ptr.get_raw_ptr());
-    if (data != nullptr)
-    {
-        return gc_ptr<P>(origin_ptr.m_ptr_node, data);
-    }
-    else
-    {
-        return nullptr;
-    }
-}
-
-template<typename P, typename T>
-const gc_ptr<P> gc_ptr_dynamic_cast(const gc_ptr<T>& origin_ptr) 
-{
-    P* data = dynamic_cast<P*>(origin_ptr.get_raw_ptr());
-    if (data != nullptr)
-    {
-        return gc_ptr<P>(origin_ptr.m_ptr_node, data);
-    }
-    else
-    {
-        return nullptr;
-    }
-}
-
 
