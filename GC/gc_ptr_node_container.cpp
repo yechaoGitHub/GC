@@ -1,6 +1,7 @@
 #include "gc_ptr_node_container.h"
 #include <assert.h>
 #include <windows.h>
+#include <thread>
 
 lock_free_node_buffer::lock_free_node_buffer(uint64_t initial_capacity) :
 	m_node_buffer(nullptr),

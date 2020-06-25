@@ -1,6 +1,7 @@
 #pragma once
 #include "gc_ptr_node_container.h"
 #include "gc_tref.h"
+#include <thread>
 
 class garbage_collection;
 
