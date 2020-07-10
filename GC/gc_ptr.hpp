@@ -214,7 +214,7 @@ public:
     {
         assert(object);
 
-        gc_data_node<T>* node = new gc_data_node<T>;
+        gc_data_node<T>* node = new gc_data_node<T>(garbage_collection::get_scan_thread_count());
         if (!node)
         {
             return false;

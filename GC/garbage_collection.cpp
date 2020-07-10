@@ -84,6 +84,11 @@ void garbage_collection::wait_for_garbage_collection()
 	}
 }
 
+uint32_t garbage_collection::get_scan_thread_count()
+{
+	return m_gc.m_thread_count;
+}
+
 void garbage_collection::gc_manager_func()
 {
 	uint32_t shrink_thread_num(0);

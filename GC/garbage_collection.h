@@ -36,6 +36,7 @@ private:
 	static void notify_ptr_changed(gc_ptr_node* node);
 	static void post_garbage_node(v_gc_ptr_node *node);
 	static void wait_for_garbage_collection();
+	static uint32_t get_scan_thread_count();
 
 	void gc_manager_func();
 };

@@ -63,6 +63,12 @@ public:
 
 	}
 
+	gc_data_node(uint32_t mark_count):
+		gc_ptr_node(mark_count)
+	{
+
+	}
+
 	virtual ~gc_data_node()
 	{
 		delete data;
