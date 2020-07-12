@@ -155,18 +155,6 @@ public:
         return !(m_cast_data == rhd.m_cast_data);
     }
 
-    bool operator== (void* null) const
-    {
-        assert(!null);
-        return is_null();
-    }
-
-    bool operator!= (void* null) const
-    {
-        assert(!null);
-        return !is_null();
-    }
-
     bool operator> (const gc_ptr& rhd) const
     {
         return m_cast_data > rhd.m_cast_data;
@@ -187,6 +175,36 @@ public:
         return m_cast_data <= rhd.m_cast_data;
     }
 
+    bool operator== (const T* ptr) const
+    {
+        return m_cast_data == ptr;
+    }
+
+    bool operator!= (const T* ptr) const
+    {
+        return m_cast_data != ptr;
+    }
+
+    bool operator> (const T* rhd) const
+    {
+        return m_cast_data > rhd;
+    }
+
+    bool operator>= (const T* rhd) const
+    {
+        return m_cast_data >= rhd;
+    }
+
+    bool operator< (const T* rhd) const
+    {
+        return m_cast_data < rhd;
+    }
+
+    bool operator<= (const T* rhd) const
+    {
+        return m_cast_data <= rhd;
+    }
+
     operator bool() const
     {
         return !is_null();
@@ -198,7 +216,7 @@ public:
         static_assert(std::is_base_of_v<P, T>, L"不能执行隐式转换");
         P* cast_data = static_cast<P*>(m_cast_data);
         assert(m_cast_data);
-        return gc_ptr<P>(m_ptr_node, cast_data);
+        return gc_ptr<P>(m_ptr_node, m_cast_data);
     }
 
     template<typename P>
@@ -226,13 +244,13 @@ public:
         {
             object->m_base_node = node;
             object->assigned_to_gc_ptr();
-            node->clear_up_gc_ptr_func = std::bind(&T::clear_up_gc_ptr, object);
         }
-        else if constexpr (T::need_clear_up_gc_ptr) 
+
+        if constexpr (T::need_clear_up_gc_ptr) 
         {
             node->clear_up_gc_ptr_func = std::bind(&T::clear_up_gc_ptr, object);
         }
-
+ 
         m_ptr_node = node;
         m_cast_data = object;
 
@@ -328,6 +346,7 @@ public:
     T*                      m_cast_data;
 
     gc_ptr(gc_ptr_node* ptr_node, T* cast_data) :
+        m_par_node(nullptr),
         m_ptr_node(ptr_node),
         m_cast_data(cast_data)
     {
@@ -440,3 +459,13 @@ const gc_ptr<P> gc_ptr_dynamic_cast(const gc_ptr<T>& origin_ptr)
 }
 
 
+namespace std {
+    template <typename T>
+    class hash<gc_ptr<T>> {
+    public:
+        size_t operator()(const gc_ptr<T>& ptr) const
+        {
+            return reinterpret_cast<size_t>(ptr.get_raw_ptr());
+        }
+    };
+};
