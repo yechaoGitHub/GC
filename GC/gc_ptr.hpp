@@ -322,7 +322,6 @@ public:
     void add_member_ptr(const gc_ptr<P>& ptr) const
     {
         assert(!this->is_null());
-        assert(ptr.is_null() && ptr.m_par_node == nullptr);
 
         garbage_collection::notify_ptr_changed(m_ptr_node);
         m_ptr_node->add_child(const_cast<gc_ptr<P>*>(&ptr));
