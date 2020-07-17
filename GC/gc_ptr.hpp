@@ -399,7 +399,7 @@ const gc_ptr<T> get_gc_ptr_from_raw(const T* raw)
     static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"Ã»ÓÐ¼Ì³ÐEnablePtrFormRaw");
     assert(raw->m_base_node);
 
-    return gc_ptr<T>(raw->m_base_node, raw);
+    return gc_ptr<T>(const_cast<gc_ptr_node*>(raw->m_base_node), const_cast<T*>(raw));
 }
 
 template<typename P, typename T>
