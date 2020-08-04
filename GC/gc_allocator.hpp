@@ -121,6 +121,9 @@ class enable_gc_ptr_form_raw
     template<typename T>
     friend const gc_ptr<T> get_gc_ptr_from_raw(const T* raw);
 
+    template<typename T>
+    friend bool is_gc_managed(const T* raw);
+
 public:
     enable_gc_ptr_form_raw() :
         m_base_node(nullptr)

@@ -19,6 +19,9 @@ class gc_ptr : public gc_ptr_base
 
     template<typename T>
     friend const gc_ptr<T> get_gc_ptr_from_raw(const T* raw);
+    
+    template<typename T>
+    friend bool is_gc_managed(const T* raw);
 
     template<typename P, typename T>
     friend gc_ptr<P> gc_ptr_static_cast(gc_ptr<T>& origin_ptr);
@@ -387,18 +390,41 @@ template<typename T>
 gc_ptr<T> get_gc_ptr_from_raw(T *raw)
 {
     static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"没有继承EnablePtrFormRaw");
-    assert(raw->m_base_node);
-
-    return gc_ptr<T>(raw->m_base_node, raw);
+    if (raw->m_base_node) 
+    {
+        return gc_ptr<T>(raw->m_base_node, raw);
+    }
+    else 
+    {
+        return nullptr;
+    }
 }
 
 template<typename T>
 const gc_ptr<T> get_gc_ptr_from_raw(const T* raw)
 {
     static_assert(std::is_base_of_v<enable_gc_ptr_form_raw, T>, L"没有继承EnablePtrFormRaw");
-    assert(raw->m_base_node);
+    if (raw->m_base_node)
+    {
+        return gc_ptr<T>(const_cast<gc_ptr_node*>(raw->m_base_node), const_cast<T*>(raw));
+    }
+    else
+    {
+        return nullptr;
+    }
+}
 
-    return gc_ptr<T>(const_cast<gc_ptr_node*>(raw->m_base_node), const_cast<T*>(raw));
+template<typename T>
+bool is_gc_managed(const T* raw) 
+{
+    if constexpr (std::is_base_of_v<enable_gc_ptr_form_raw, T>) 
+    {
+        return raw->m_base_node != nullptr;
+    }
+    else 
+    {
+        return false;
+    }
 }
 
 template<typename P, typename T>

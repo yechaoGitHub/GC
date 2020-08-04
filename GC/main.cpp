@@ -5,6 +5,8 @@
 
 struct vertex : public virtual enable_gc_ptr_form_raw
 {
+    enum { need_clear_up_gc_ptr = 0 };
+
     vertex(uint32_t num_):
         num(num_),
         edges(get_gc_allocator<gc_ptr<vertex>>())

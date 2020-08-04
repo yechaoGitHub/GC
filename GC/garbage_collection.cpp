@@ -140,6 +140,6 @@ void garbage_collection::gc_manager_func()
 			InterlockedExchange64(&m_wait_thread_count, m_thread_count);
 		}
 
-		std::this_thread::sleep_for(std::chrono::seconds(1));
+		std::this_thread::sleep_for(std::chrono::seconds(100));
 	}
 }

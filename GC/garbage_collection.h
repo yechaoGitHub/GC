@@ -18,7 +18,6 @@ public:
 	static void start_up(uint32_t scan_thread_count);
 	static void shut_down();
 	
-
 private:
 	garbage_collection();
 	~garbage_collection();
