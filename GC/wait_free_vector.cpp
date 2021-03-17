@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <vector>
 #include <atomic>
+#include <mutex>
+#include <unordered_set>
 #include <thread>
 #include <windows.h>
 
@@ -80,7 +82,7 @@ public:
         int64_t old_size(0);
         int64_t new_size(0);
 
-        MutexCheckWeak(_removing, _resizing, _getting, _inserting);
+        MutexCheckWeak(_removing, _resizing, _getting);
 
         do
         {
@@ -101,8 +103,9 @@ public:
         {
             volatile void* old_value = _data[index];
             if (old_value &&
-                (InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(&_data[index]), 0, reinterpret_cast<long long>(old_value)) != 0))
+                (InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(&_data[index]), 0, reinterpret_cast<long long>(old_value)) == reinterpret_cast<long long>(old_value)))
             {
+                value = const_cast<void*>(old_value);
                 break;
             }
             else
@@ -113,29 +116,28 @@ public:
 
         if (index != old_size - 1)
         {
+            volatile void* old_value(nullptr);
             while (true)
             {
-                volatile void* old_value = _data[old_size - 1];
-                if (old_value && 
-                    InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(&_data[index]), reinterpret_cast<long long>(_data[old_size - 1]), 0) != 0) 
-                {
-                    break;
-                }
-                else 
-                {
-                    std::this_thread::yield();
-                }
-            }
-            
-            while (true)
-            {
-                volatile void* old_value = _data[old_size - 1];
+                old_value = _data[old_size - 1];
                 if (old_value &&
-                    (InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(&_data[old_size - 1]), 0, reinterpret_cast<long long>(old_value)) != 0))
+                    (InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(&_data[old_size - 1]), 0, reinterpret_cast<long long>(old_value)) == reinterpret_cast<long long>(old_value)))
                 {
                     break;
                 }
                 else
+                {
+                    std::this_thread::yield();
+                }
+            }
+
+            while (true)
+            {
+                if(InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(&_data[index]), reinterpret_cast<long long>(old_value), 0) == 0)
+                {
+                    break;
+                }
+                else 
                 {
                     std::this_thread::yield();
                 }
@@ -152,7 +154,7 @@ public:
         int64_t old_total(0);
         int64_t new_total(0);
 
-        MutexCheckWeak(_getting, _resizing, _removing);
+        MutexCheckWeak(_getting, _resizing, _removing, _inserting);
 
         if (index >= _size) 
         {
@@ -191,7 +193,6 @@ private:
             return;
         }
 
-        assert(_size == _capacity);
         int32_t new_capacity = _size * 1.5;
 
         volatile void** new_place = new volatile void* [new_capacity] { 0 };
@@ -276,24 +277,41 @@ private:
 
 }VEC;
 
-uint64_t d = 1;
+std::atomic<uint64_t> d = 1;
+
+std::mutex LOCK;
+std::unordered_set<void*> ST_TEST;
+
+std::atomic<bool> INSERT_COMPLETED = false;
+
+void InsertSet(std::unordered_set<void*> &st, void* v)
+{
+    std::scoped_lock<std::mutex> raii_lock(LOCK);
+    auto pair = st.insert(v);
+    assert(pair.second);
+}
 
 void InsertThread() 
 {
-    for(;;)
+    for(int i = 0; i < 100000; i++)
     //for(int i = 100; i > 0; i--)
     {
-        VEC.insert((void*)d++);
+        void* v = (void*)d.fetch_add(1);
+
+        VEC.insert((void*)v);
     }  
 }
 
 void RemoveThread() 
 {
-    uint64_t v(0);
+    void* v(0);
 
-    while (true) 
+    while (!INSERT_COMPLETED || VEC.size())
     {
-        VEC.remove(0, reinterpret_cast<void*&>(v));
+        if (VEC.remove(0, v)) 
+        {
+            InsertSet(ST_TEST, v);
+        }
     }
 }
 
@@ -301,14 +319,25 @@ int main()
 {
     std::thread th1(InsertThread);
     std::thread th2(InsertThread);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     std::thread th3(RemoveThread);
     std::thread th4(RemoveThread);
 
     th1.join();
     th2.join();
+
+    INSERT_COMPLETED = true;
+
     th3.join();
     th4.join();
+
+    for (int64_t i = 0; i < 200000; i++)
+    {
+        auto it = ST_TEST.find((void*)(i + 1));
+        assert(it != ST_TEST.end());
+    }
+
+    ::getchar();
 
     return 0;
 }
