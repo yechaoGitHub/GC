@@ -4,21 +4,6 @@
 #include <mutex>
 #include <functional>
 
-class gc_ptr_node;
-typedef volatile gc_ptr_node v_gc_ptr_node;
-
-struct gc_mark
-{
-	gc_mark() :
-		loop_count(0),
-		step_count(0)
-	{
-	}
-
-	uint64_t loop_count;
-	uint64_t step_count;
-};
-
 class gc_ptr_base
 {
 public:
@@ -32,11 +17,11 @@ public:
 	gc_ptr_node(uint32_t mark_count);
 	virtual ~gc_ptr_node();
 
-	volatile int64_t		        ref_count;
-	int32_t							gc_num;
-	int32_t							gc_pos;
+	std::atomic<uint64_t>		    ref_count;
+	uint64_t						gc_mark;
+	uint32_t						index;
+	uint32_t						circle_count;
 	std::vector<gc_ptr_base*>       child_ptrs;
-	std::vector<gc_mark>	        gc_marks;
 	std::mutex                      lock;
 
 	void add_ref();
